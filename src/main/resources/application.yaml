@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: bookshow
+  flyway:
+    enabled: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: root
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    org:
+      flywaydb: DEBUG
+      hibernate:
+        orm:
+          jdbc:
+            bind: trace

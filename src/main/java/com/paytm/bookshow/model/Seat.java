@@ -41,6 +41,9 @@ public class Seat {
     @Column(name="reservation_id")
     private UUID reservationId;
 
+    @Column(name = "hold_expires_at")
+    private Instant holdExpiresAt;
+
     @Column(name = "created_at", nullable = false, insertable = false)
     @CreatedDate
     private Instant createdAt;

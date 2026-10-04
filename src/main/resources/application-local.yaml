@@ -5,9 +5,9 @@ spring:
     enabled: true
 
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-    username: ${POSTGRES_USERNAME}
-    password: ${POSTGRES_PASSWORD}
+    url: jdbc:postgresql://shinkansen.proxy.rlwy.net:16725/railway
+    username: postgres
+    password: HYafnvQwikJzfKJmrQiSMwAomNHrnmyg
 
   jpa:
     hibernate:

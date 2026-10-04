@@ -1,9 +1,6 @@
 package com.paytm.bookshow.controller;
 
-import com.paytm.bookshow.dto.CreateShowDto;
-import com.paytm.bookshow.dto.GetShowResponseDto;
-import com.paytm.bookshow.dto.ReserveShowDto;
-import com.paytm.bookshow.dto.ReserveShowResponseDto;
+import com.paytm.bookshow.dto.*;
 import com.paytm.bookshow.model.Show;
 import com.paytm.bookshow.service.ShowService;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +23,16 @@ public class ShowController {
     public ResponseEntity<UUID> createShow(@RequestBody CreateShowDto createShowDto) {
         Show show = showService.createShow(createShowDto);
         return ResponseEntity.ok(show.getId());
+    }
+
+    @PostMapping("/{showId}/hold")
+    public ResponseEntity<HoldSeatsResponseDto> holdSeat(
+            @PathVariable("showId") UUID showId,
+            @RequestHeader("userId") UUID userId,
+            @RequestBody HoldSeatsDto holdSeatsDto
+    ) {
+        return ResponseEntity.ok(showService.holdSeats(showId, userId, holdSeatsDto));
+
     }
 
     @PostMapping("/reserve")

@@ -1,6 +1,7 @@
 package com.paytm.bookshow.controller;
 
 import com.paytm.bookshow.dto.CreateShowDto;
+import com.paytm.bookshow.dto.GetShowResponseDto;
 import com.paytm.bookshow.dto.ReserveShowDto;
 import com.paytm.bookshow.dto.ReserveShowResponseDto;
 import com.paytm.bookshow.model.Show;
@@ -33,5 +34,10 @@ public class ShowController {
             @RequestHeader("userId") UUID userId,
             @RequestBody ReserveShowDto reserveShowDto) {
         return ResponseEntity.status(201).body(showService.reserve(userId, idempotencyKey, reserveShowDto));
+    }
+
+    @GetMapping("/{showId}")
+    public ResponseEntity<GetShowResponseDto> getShow(@PathVariable("showId") UUID showId) {
+        return ResponseEntity.ok(showService.getShow(showId)) ;
     }
 }

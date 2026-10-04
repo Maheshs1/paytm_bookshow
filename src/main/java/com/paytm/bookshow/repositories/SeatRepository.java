@@ -18,4 +18,6 @@ public interface SeatRepository extends JpaRepository<Seat, UUID> {
                 FOR UPDATE 
         """, nativeQuery = true)
     Optional<List<Seat>> lockAndGetSeats(@Param("seatNumbers") List<String> seatNumbers, @Param("showId") UUID showId);
+
+    List<Seat> findByShowId(UUID showId);
 }

@@ -1,6 +1,7 @@
 package com.paytm.bookshow.service;
 
 import com.paytm.bookshow.dto.CreateShowDto;
+import com.paytm.bookshow.dto.GetShowResponseDto;
 import com.paytm.bookshow.dto.ReserveShowDto;
 import com.paytm.bookshow.dto.ReserveShowResponseDto;
 import com.paytm.bookshow.enums.ReservationStatus;
@@ -123,4 +124,17 @@ public class ShowService {
         return new ReserveShowResponseDto(userId, showId, savedReservation.getId(), cost, ReservationStatus.CONFIRMED, seatNumbers);
     }
 
+    public GetShowResponseDto getShow(UUID showId) {
+        Show show = showRepository.findById(showId).orElseThrow(() -> new NotFoundException("Show with Id "+showId+" Not Found"));
+
+        List<Seat> seats = seatRepository.findByShowId(show.getId());
+
+        List<GetShowResponseDto.SeatResponse> seatResponseList = new ArrayList<>();
+        for (Seat seat:seats) {
+            GetShowResponseDto.SeatResponse seatResponse = new GetShowResponseDto.SeatResponse(seat.getSeatNumber(), seat.getStatus(), seat.getUpdatedAt());
+            seatResponseList.add(seatResponse);
+        }
+
+        return new GetShowResponseDto(show.getName(), show.getId(), seatResponseList);
+    }
 }

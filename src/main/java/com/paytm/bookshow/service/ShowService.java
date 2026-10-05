@@ -10,6 +10,8 @@ import com.paytm.bookshow.model.*;
 import com.paytm.bookshow.repositories.*;
 import com.paytm.bookshow.util.IdempotencyUtil;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -26,6 +28,8 @@ public class ShowService {
     private final ReservationSeatRepository reservationSeatRepository;
     private ReservationMetrics reservationMetrics;
     private SeatMetrics seatMetrics;
+    private static final Logger log =
+            LoggerFactory.getLogger(ReservationService.class);
 
     public ShowService(ShowRepository showRepository, ShowUserBookingRepository showUserBookingRepository, SeatRepository seatRepository, ReservationRepository reservationRepository,
                        ReservationSeatRepository reservationSeatRepository, ReservationMetrics reservationMetrics, SeatMetrics seatMetrics) {
@@ -77,6 +81,12 @@ public class ShowService {
 
         if(countBookableSeats>show.getPerUserLimit()) {
             reservationMetrics.perLimitUsageExceeded();
+            log.info(
+                    "Reservation declined: reason=per_user_limit, showId={}, userId={}, seatCount={}",
+                    showId,
+                    userId,
+                    seatNumbers.size()
+            );
             throw new SeatLimitExceededException("Seat Limit Exceeded");
         }
         showUserBooking.incrementSeatCountBy(requestedSeats);
@@ -85,6 +95,12 @@ public class ShowService {
 
         if(seats.size() != seatNumbers.size()) {
             reservationMetrics.seatTaken();
+            log.info(
+                    "Reservation declined: reason=seat_taken, showId={}, userId={}, seatCount={}",
+                    showId,
+                    userId,
+                    seatNumbers.size()
+            );
             throw new SeatUnavailableException("Selected Seat Not Available");
         }
 
@@ -115,6 +131,12 @@ public class ShowService {
         Reservation existingReservation = reservationRepository.findByIdempotencyKey(idempotencyKey);
         String requestHash = IdempotencyUtil.hash(seatNumbers);
         if(existingReservation!=null) {
+            log.info(
+                    "Reservation replayed: reservationId={}, showId={}, userId={}",
+                    existingReservation.getId(),
+                    showId,
+                    userId
+            );
             reservationMetrics.idempotencyReplayed();
             if(requestHash.equals(existingReservation.getRequestHash())) {
                 return new ReserveShowResponseDto(userId, showId, existingReservation.getId(), existingReservation.getAmountPaise(), existingReservation.getStatus(), seatNumbers);
@@ -143,6 +165,13 @@ public class ShowService {
         seatRepository.saveAll(seats);
         reservationSeatRepository.saveAll(reservationSeats);
         reservationMetrics.reservationConfirmed();
+        log.info(
+                "Reservation confirmed: reservationId={}, showId={}, userId={}, seatCount={}",
+                reservation.getId(),
+                showId,
+                userId,
+                seats.size()
+        );
         return new ReserveShowResponseDto(userId, showId, savedReservation.getId(), cost, ReservationStatus.CONFIRMED, seatNumbers);
     }
 

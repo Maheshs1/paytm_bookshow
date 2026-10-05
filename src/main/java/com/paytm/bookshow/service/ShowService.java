@@ -13,6 +13,7 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -42,7 +43,7 @@ public class ShowService {
         this.seatMetrics = seatMetrics;
     }
 
-    public Show createShow(CreateShowDto createShowDto) {
+    public CreateShowResponseDto createShow(CreateShowDto createShowDto) {
         String name = createShowDto.getName();
         int perUserLimit = createShowDto.getPerUserLimit();
         List<String> seats = createShowDto.getSeats();
@@ -53,18 +54,18 @@ public class ShowService {
         seatSet.clear();
 
         long price = createShowDto.getPricePaise();
-        Show show = new Show(name, price, perUserLimit, 100);
+        Show show = new Show(name, price, perUserLimit, seats.size());
         Show savedShow = showRepository.save(show);
 
         List<Seat> toSaveSeats = new ArrayList<>();
-        for(int i = 0; i<100; i++) {
-            Seat newSeat = new Seat(savedShow.getId(), "A"+(i+1));
+        for(int i = 0; i<seats.size(); i++) {
+            Seat newSeat = new Seat(savedShow.getId(), seats.get(i));
             toSaveSeats.add(newSeat);
         }
         seatRepository.saveAll(toSaveSeats);
         seatMetrics.registerShow(savedShow.getId());
         seatMetrics.refresh(show.getId());
-        return savedShow;
+        return new CreateShowResponseDto(savedShow.getId());
     }
 
     @Transactional
@@ -108,12 +109,18 @@ public class ShowService {
             seat.setStatus(SeatStatus.HELD);
             seat.setUserId(userId);
             seat.setHoldExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES));
+//          for test purpose to show correct numbers in metrics
+
+//
         }
 //        seatRepository.saveAll(seats);
         List<String> seatsHeld = new ArrayList<>();
         for(Seat seat: seats) {
             seatsHeld.add(seat.getSeatNumber());
         }
+
+        reservationMetrics.seatHeld();
+        seatMetrics.refresh(showId);
         return new HoldSeatsResponseDto(showId, seatsHeld);
     }
 
@@ -122,7 +129,11 @@ public class ShowService {
 //        List<String> seatNumbers = reserveShowDto.getSeats();
         Show show = showRepository.findById(showId).orElseThrow(() ->new NotFoundException("Show Not Found"));
         List<Seat> seats = seatRepository.findSeatsByShowIdUserIdAndHeld(showId, userId);
+
         int requestedSeats = seats.size();
+        if(requestedSeats==0) {
+            throw new BadRequestException("No Seats Held For reservation");
+        }
         List<String> seatNumbers = new ArrayList<>();
         for(Seat seat: seats) {
             seatNumbers.add(seat.getSeatNumber());
@@ -145,8 +156,6 @@ public class ShowService {
             }
         }
 
-
-
         long cost = show.getPricePaise()*seatNumbers.size();
         Reservation reservation = new Reservation(showId, userId, cost, idempotencyKey, requestHash);
         Reservation savedReservation = reservationRepository.save(reservation);
@@ -164,7 +173,6 @@ public class ShowService {
 
         seatRepository.saveAll(seats);
         reservationSeatRepository.saveAll(reservationSeats);
-        reservationMetrics.reservationConfirmed();
         log.info(
                 "Reservation confirmed: reservationId={}, showId={}, userId={}, seatCount={}",
                 reservation.getId(),
@@ -172,6 +180,7 @@ public class ShowService {
                 userId,
                 seats.size()
         );
+        reservationMetrics.reservationConfirmed();
         return new ReserveShowResponseDto(userId, showId, savedReservation.getId(), cost, ReservationStatus.CONFIRMED, seatNumbers);
     }
 

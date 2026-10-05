@@ -10,13 +10,17 @@ public class ReservationMetrics {
     private final Counter seatTaken;
     private final Counter declinedPerLimitUsage;
     private final Counter idempotencyReplay;
+    private final Counter heldSeat;
 
     public ReservationMetrics(MeterRegistry registry) {
         confirmedSeat = Counter.builder("reservations.confirmed")
                 .description("Confirmed Reservations")
                 .tag("reservations", "confirmed")
                 .register(registry);
-
+        heldSeat = Counter.builder("reservations.held")
+                .description("Held Reservations")
+                .tag("reservations", "held")
+                .register(registry);
 
         seatTaken = Counter.builder("reservations.declined")
                 .description("Seat Already Taken")
@@ -50,4 +54,6 @@ public class ReservationMetrics {
     public void idempotencyReplayed() {
         idempotencyReplay.increment();
     }
+
+    public void seatHeld() { heldSeat.increment(); }
 }

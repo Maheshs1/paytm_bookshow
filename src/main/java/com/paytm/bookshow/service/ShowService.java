@@ -4,6 +4,8 @@ import com.paytm.bookshow.dto.*;
 import com.paytm.bookshow.enums.ReservationStatus;
 import com.paytm.bookshow.enums.SeatStatus;
 import com.paytm.bookshow.exception.*;
+import com.paytm.bookshow.metrics.ReservationMetrics;
+import com.paytm.bookshow.metrics.SeatMetrics;
 import com.paytm.bookshow.model.*;
 import com.paytm.bookshow.repositories.*;
 import com.paytm.bookshow.util.IdempotencyUtil;
@@ -22,18 +24,21 @@ public class ShowService {
     private final ShowUserBookingRepository showUserBookingRepository;
     private ReservationRepository reservationRepository;
     private final ReservationSeatRepository reservationSeatRepository;
+    private ReservationMetrics reservationMetrics;
+    private SeatMetrics seatMetrics;
 
     public ShowService(ShowRepository showRepository, ShowUserBookingRepository showUserBookingRepository, SeatRepository seatRepository, ReservationRepository reservationRepository,
-                       ReservationSeatRepository reservationSeatRepository) {
+                       ReservationSeatRepository reservationSeatRepository, ReservationMetrics reservationMetrics, SeatMetrics seatMetrics) {
         this.showRepository = showRepository;
         this.showUserBookingRepository = showUserBookingRepository;
         this.seatRepository = seatRepository;
         this.reservationRepository = reservationRepository;
         this.reservationSeatRepository = reservationSeatRepository;
+        this.reservationMetrics = reservationMetrics;
+        this.seatMetrics = seatMetrics;
     }
 
     public Show createShow(CreateShowDto createShowDto) {
-        System.out.println(createShowDto);
         String name = createShowDto.getName();
         int perUserLimit = createShowDto.getPerUserLimit();
         List<String> seats = createShowDto.getSeats();
@@ -44,16 +49,17 @@ public class ShowService {
         seatSet.clear();
 
         long price = createShowDto.getPricePaise();
-        Show show = new Show(name, price, perUserLimit, 200);
+        Show show = new Show(name, price, perUserLimit, 100);
         Show savedShow = showRepository.save(show);
 
         List<Seat> toSaveSeats = new ArrayList<>();
-        for(int i = 0; i<200; i++) {
+        for(int i = 0; i<100; i++) {
             Seat newSeat = new Seat(savedShow.getId(), "A"+(i+1));
             toSaveSeats.add(newSeat);
         }
         seatRepository.saveAll(toSaveSeats);
-
+        seatMetrics.registerShow(savedShow.getId());
+        seatMetrics.refresh(show.getId());
         return savedShow;
     }
 
@@ -61,15 +67,16 @@ public class ShowService {
     public HoldSeatsResponseDto holdSeats(UUID showId, UUID userId, HoldSeatsDto holdSeatsDto) {
         List<String> seatNumbers = holdSeatsDto.getSeats();
         int requestedSeats = seatNumbers.size();
-
+        Show show = showRepository.findById(showId).orElseThrow(() -> new NotFoundException("Show with Id " + showId + " not found"));
         showUserBookingRepository.ensureExists(showId, userId);
 
         ShowUserBooking showUserBooking = showUserBookingRepository.findByIdForUpdate(showId, userId)
                 .orElseThrow();
 
         int countBookableSeats = showUserBooking.getSeatCount() + requestedSeats;
-        Show show = showRepository.findById(showId).orElseThrow(() -> new NotFoundException("Show with Id "+showId+" not found"));
+
         if(countBookableSeats>show.getPerUserLimit()) {
+            reservationMetrics.perLimitUsageExceeded();
             throw new SeatLimitExceededException("Seat Limit Exceeded");
         }
         showUserBooking.incrementSeatCountBy(requestedSeats);
@@ -77,6 +84,7 @@ public class ShowService {
         List<Seat> seats = seatRepository.lockAndGetSeats(seatNumbers, showId).orElseThrow();
 
         if(seats.size() != seatNumbers.size()) {
+            reservationMetrics.seatTaken();
             throw new SeatUnavailableException("Selected Seat Not Available");
         }
 
@@ -94,9 +102,9 @@ public class ShowService {
     }
 
     @Transactional
-    public ReserveShowResponseDto reserve(UUID userId, String idempotencyKey, ReserveShowDto reserveShowDto) {
-        UUID showId = reserveShowDto.getShowId();
+    public ReserveShowResponseDto reserve(UUID userId, String idempotencyKey, UUID showId) {
 //        List<String> seatNumbers = reserveShowDto.getSeats();
+        Show show = showRepository.findById(showId).orElseThrow(() ->new NotFoundException("Show Not Found"));
         List<Seat> seats = seatRepository.findSeatsByShowIdUserIdAndHeld(showId, userId);
         int requestedSeats = seats.size();
         List<String> seatNumbers = new ArrayList<>();
@@ -107,6 +115,7 @@ public class ShowService {
         Reservation existingReservation = reservationRepository.findByIdempotencyKey(idempotencyKey);
         String requestHash = IdempotencyUtil.hash(seatNumbers);
         if(existingReservation!=null) {
+            reservationMetrics.idempotencyReplayed();
             if(requestHash.equals(existingReservation.getRequestHash())) {
                 return new ReserveShowResponseDto(userId, showId, existingReservation.getId(), existingReservation.getAmountPaise(), existingReservation.getStatus(), seatNumbers);
             } else {
@@ -114,9 +123,7 @@ public class ShowService {
             }
         }
 
-        Show show = showRepository.findById(showId).orElseThrow(() -> {
-            throw new NotFoundException("Show Not Found");
-        });
+
 
         long cost = show.getPricePaise()*seatNumbers.size();
         Reservation reservation = new Reservation(showId, userId, cost, idempotencyKey, requestHash);
@@ -135,7 +142,7 @@ public class ShowService {
 
         seatRepository.saveAll(seats);
         reservationSeatRepository.saveAll(reservationSeats);
-
+        reservationMetrics.reservationConfirmed();
         return new ReserveShowResponseDto(userId, showId, savedReservation.getId(), cost, ReservationStatus.CONFIRMED, seatNumbers);
     }
 

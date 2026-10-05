@@ -35,12 +35,12 @@ public class ShowController {
 
     }
 
-    @PostMapping("/reserve")
+    @PostMapping("/{showId}/reserve")
     public ResponseEntity<ReserveShowResponseDto> reserveShow(
+            @PathVariable UUID showId,
             @RequestHeader("X-Idempotency-Key") String idempotencyKey,
-            @RequestHeader("userId") UUID userId,
-            @RequestBody ReserveShowDto reserveShowDto) {
-        return ResponseEntity.status(201).body(showService.reserve(userId, idempotencyKey, reserveShowDto));
+            @RequestHeader("userId") UUID userId) {
+        return ResponseEntity.status(201).body(showService.reserve(userId, idempotencyKey, showId));
     }
 
     @GetMapping("/{showId}")

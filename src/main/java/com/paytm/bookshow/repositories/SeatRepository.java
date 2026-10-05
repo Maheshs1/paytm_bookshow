@@ -33,4 +33,6 @@ public interface SeatRepository extends JpaRepository<Seat, UUID> {
                 FOR UPDATE 
         """, nativeQuery = true)
     List<Seat> findSeatsByShowIdUserIdAndHeld(UUID showId, UUID userId);
+
+    long countByShowIdAndStatus(UUID showId, SeatStatus status);
 }

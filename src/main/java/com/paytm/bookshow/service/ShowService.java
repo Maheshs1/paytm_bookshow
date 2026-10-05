@@ -120,7 +120,6 @@ public class ShowService {
         }
 
         reservationMetrics.seatHeld();
-        seatMetrics.refresh(showId);
         return new HoldSeatsResponseDto(showId, seatsHeld);
     }
 

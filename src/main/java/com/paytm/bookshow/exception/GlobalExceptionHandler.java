@@ -38,12 +38,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleSeatLimitExceededException(SeatLimitExceededException seatLimitExceededException) {
         ErrorResponse errorResponse = new ErrorResponse(
                 LocalDateTime.now(),
-                HttpStatus.UNPROCESSABLE_CONTENT.getReasonPhrase(),
-                HttpStatus.UNPROCESSABLE_CONTENT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                HttpStatus.CONFLICT.value(),
                 seatLimitExceededException.getMessage()
         );
 
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
     @ExceptionHandler(SeatUnavailableException.class)
